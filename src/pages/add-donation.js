@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { db, storage, model } from '../firebase';
+import { db } from '../firebase';
+import { uploadImage } from '../supabase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -14,6 +14,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Loader2, CheckCircle, XCircle, UploadCloud, Search, Upload, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+function formatExpiryDate(dateValue) {
+  if (!dateValue) {
+    return '';
+  }
+
+  const [year, month, day] = dateValue.split('-');
+  return `${day}/${month}/${year}`;
+}
 
 export default function AddDonation() {
   const [title, setTitle] = useState('');
@@ -35,8 +44,11 @@ export default function AddDonation() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const handleLocationChange = useCallback((newCoords) => {
+  const handleLocationChange = useCallback((newCoords, address) => {
     setCoords(newCoords);
+    if (address) {
+      setMapSearchQuery(address);
+    }
   }, []);
 
   const handleDragOver = (e) => {
@@ -99,12 +111,22 @@ export default function AddDonation() {
     setAnalysisResult(null);
 
     try {
-      const prompt = "Analyze this image of food. Provide a JSON response with three keys: 'foodName' (a short, descriptive name for the food), 'description' (a brief description suitable for a food donation listing), and 'isEatable' (a boolean, true if the food appears to be safe to eat, false otherwise). Your response must be only the JSON object, without any markdown formatting.";
-      
-      const result = await model.generateContent([prompt, {inlineData: {data: await image.arrayBuffer().then(buffer => btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''))), mimeType: image.type}}]);
-      const responseText = result.response.text();
-      
-      const jsonResponse = JSON.parse(responseText);
+      const imageData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.onerror = () => reject(new Error('Could not read image'));
+        reader.readAsDataURL(image);
+      });
+      const response = await fetch('/api/analyze-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData, mimeType: image.type }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Gemini image analysis failed');
+      }
+      const jsonResponse = result;
       
       if (jsonResponse.isEatable) {
         setTitle(jsonResponse.foodName);
@@ -116,7 +138,7 @@ export default function AddDonation() {
       }
     } catch (err) {
       console.error("AI Analysis Error:", err);
-      setError('Failed to analyze image. Please try again or fill the form manually.');
+      setError(err.message || 'Failed to analyze image. Please try again or fill the form manually.');
     } finally {
       setIsScanning(false);
     }
@@ -146,10 +168,9 @@ export default function AddDonation() {
       return;
     }
     try {
-      // 1. Upload image to Firebase Storage
-      const imageRef = ref(storage, `donations/${user.uid}/${Date.now()}_${image.name}`);
-      await uploadBytes(imageRef, image);
-      const imageUrl = await getDownloadURL(imageRef);
+      // 1. Upload image to Supabase Storage
+      const imagePath = `donations/${user.uid}/${Date.now()}_${image.name}`;
+      const imageUrl = await uploadImage(image, imagePath);
 
       // 2. Add donation to Firestore with image URL
       await addDoc(collection(db, 'donations'), {
@@ -389,6 +410,11 @@ export default function AddDonation() {
                           onChange={e => setExpiry(e.target.value)} 
                           className="text-lg py-3"
                         />
+                        {expiry && (
+                          <p className="text-sm text-slate-500">
+                            Selected expiry date: {formatExpiryDate(expiry)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -405,19 +431,6 @@ export default function AddDonation() {
                     
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-lg font-semibold text-slate-800">Search Location</Label>
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                          <Input
-                            placeholder="Search for a location..."
-                            value={mapSearchQuery}
-                            onChange={(e) => setMapSearchQuery(e.target.value)}
-                            className="pl-10 text-lg py-3"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
                         <Label htmlFor="location" className="text-lg font-semibold text-slate-800">Location Description</Label>
                         <Input 
                           id="location" 
@@ -430,9 +443,13 @@ export default function AddDonation() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-lg font-semibold text-slate-800">Pin Location on Map</Label>
-                        <div className="rounded-xl overflow-hidden border border-slate-200 shadow-lg h-48">
-                          <GoogleMaps onLocationChange={handleLocationChange} />
+                        <Label className="text-lg font-semibold text-slate-800">Search and Pin Location</Label>
+                        <div className="rounded-xl border border-slate-200 p-2 shadow-lg">
+                          <GoogleMaps
+                            onLocationChange={handleLocationChange}
+                            searchQuery={mapSearchQuery}
+                            onSearchQueryChange={setMapSearchQuery}
+                          />
                         </div>
                       </div>
 

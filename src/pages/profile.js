@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
+import { uploadImage } from '../supabase';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -65,9 +66,14 @@ export default function Profile() {
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (photoPreview) URL.revokeObjectURL(photoPreview);
-    if (file) {
+    if (file && file.type.startsWith('image/')) {
       setNewPhoto(file);
       setPhotoPreview(URL.createObjectURL(file));
+      setEditError('');
+    } else if (file) {
+      setNewPhoto(null);
+      setPhotoPreview(user?.photoURL || null);
+      setEditError('Please select a valid image file.');
     } else {
       setNewPhoto(null);
       setPhotoPreview(user?.photoURL || null);
@@ -81,12 +87,8 @@ export default function Profile() {
     try {
       let photoURL = user.photoURL;
       if (newPhoto) {
-        // Upload to Firebase Storage
-        const { storage } = await import('../firebase');
-        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-        const imageRef = ref(storage, `profile/${user.uid}/${Date.now()}_${newPhoto.name}`);
-        await uploadBytes(imageRef, newPhoto);
-        photoURL = await getDownloadURL(imageRef);
+        const imagePath = `profile/${user.uid}/${Date.now()}_${newPhoto.name}`;
+        photoURL = await uploadImage(newPhoto, imagePath);
       }
       
       // Update the user's profile with Firebase Auth
@@ -106,7 +108,7 @@ export default function Profile() {
       setPhotoPreview(null);
     } catch (err) {
       console.error('Profile update error:', err);
-      setEditError('Failed to update profile. Please try again.');
+      setEditError(err.message || 'Failed to update profile. Please try again.');
     }
     setEditLoading(false);
   };

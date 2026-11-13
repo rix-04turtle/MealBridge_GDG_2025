@@ -1,54 +1,24 @@
 import Link from 'next/link';
 import Navigation from '../components/Navigation';
 import { motion } from 'framer-motion';
+import { Gift, MapPinned, MessageCircle } from 'lucide-react';
 
 const features = [
 
 	{
 		title: 'Post a Donation',
 		description: 'Help others by giving',
-		icon: (
-			<svg
-				className="h-8 w-8 text-blue-500"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2"
-				viewBox="0 0 24 24"
-			>
-				<path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-			</svg>
-		),
+		icon: <Gift aria-hidden="true" className="h-9 w-9 text-blue-600" strokeWidth={2.25} />,
 	},
 	{
 		title: 'Claim Food Nearby',
 		description: 'Real-time map and listings',
-		icon: (
-			<svg
-				className="h-8 w-8 text-green-500"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2"
-				viewBox="0 0 24 24"
-			>
-				<path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 12.414a4 4 0 10-5.657 5.657l4.243 4.243a8 8 0 1011.314-11.314z" />
-			</svg>
-		),
+		icon: <MapPinned aria-hidden="true" className="h-9 w-9 text-green-600" strokeWidth={2.25} />,
 	},
 	{
 		title: 'Chat & Coordinate',
-		description: 'Built-in chat and AI assistant',
-		icon: (
-			<svg
-				className="h-8 w-8 text-purple-500"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2"
-				viewBox="0 0 24 24"
-			>
-				<path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8a9 9 0 100-18 9 9 0 000 18z"
-				/>
-			</svg>
-		),
+		description: 'Built-in chat for coordination',
+		icon: <MessageCircle aria-hidden="true" className="h-9 w-9 text-purple-600" strokeWidth={2.25} />,
 	},	
 ];
 
@@ -110,7 +80,9 @@ const Home = () => {
 							}}
 							className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center text-center border border-slate-100 hover:shadow-xl hover:border-[#10B981] transition-all"
 						>
-							<span className="mb-6 p-4 bg-slate-100 rounded-full">{feature.icon}</span>
+							<span className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 shadow-inner">
+								{feature.icon}
+							</span>
 							<h3 className="mt-2 text-xl font-bold text-slate-800">
 								{feature.title}
 							</h3>

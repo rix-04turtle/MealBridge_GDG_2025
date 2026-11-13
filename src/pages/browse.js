@@ -44,7 +44,7 @@ export default function BrowseDonations() {
       // Refresh the donations list
       await loadDonations();
     } catch (err) {
-      setError('Failed to claim donation.');
+      setError(err.message || 'Failed to claim donation.');
     }
     setClaimingId(null);
   };
@@ -60,6 +60,10 @@ export default function BrowseDonations() {
     const matchesUnit = filter.unit === '' || (d.unit && d.unit === filter.unit);
     return matchesSearch && matchesLocation && matchesUnit;
   });
+
+  const getExpiryDate = (expiry) => (
+    expiry?.toDate ? expiry.toDate() : null
+  );
 
   return (
     <>
@@ -148,7 +152,11 @@ export default function BrowseDonations() {
                     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
                   }}
                 >
-                  <Card className="flex flex-col hover:shadow-2xl hover:scale-[1.03] transition-all">
+                  <Card className={`flex flex-col hover:shadow-2xl hover:scale-[1.03] transition-all ${
+                    !donation.claimedBy && getExpiryDate(donation.expiry)?.getTime() <= Date.now()
+                      ? 'border-2 border-red-500 bg-red-50/40'
+                      : ''
+                  }`}>
                     <CardHeader className="p-0">
                       <img src={donation.imageUrl || 'https://via.placeholder.com/400x250?text=No+Image'} alt={donation.title} className="w-full h-48 object-cover rounded-t-xl" />
                     </CardHeader>
@@ -156,6 +164,11 @@ export default function BrowseDonations() {
                       <CardTitle className="text-xl mb-2 font-bold text-slate-800">{donation.title}</CardTitle>
                       <CardDescription className="mb-4 text-slate-600">{donation.description}</CardDescription>
                       <div className="space-y-2 text-sm text-slate-600">
+                        {!donation.claimedBy && getExpiryDate(donation.expiry)?.getTime() <= Date.now() && (
+                          <div className="rounded-lg bg-red-100 px-3 py-2 font-bold text-red-700">
+                            Expired — this donation cannot be claimed
+                          </div>
+                        )}
                         <div className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-primary" /> {donation.location}</div>
                         <div className="flex items-center"><Package className="h-4 w-4 mr-2 text-primary" /> Quantity: {donation.quantity} {donation.unit ? donation.unit : ''}</div>
                         {donation.expiry && (
@@ -165,7 +178,11 @@ export default function BrowseDonations() {
                       </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-0">
-                      {donation.claimedBy ? (
+                      {!donation.claimedBy && getExpiryDate(donation.expiry)?.getTime() <= Date.now() ? (
+                        <Badge className="w-full justify-center rounded-xl bg-red-600 py-2 text-base text-white">
+                          Expired
+                        </Badge>
+                      ) : donation.claimedBy ? (
                         (user && (user.uid === donation.createdBy || user.uid === donation.claimedBy)) ? (
                           <Link href={`/chat/${donation.id}`} className="w-full">
                             <Button className="w-full bg-primary hover:bg-amber-500 rounded-xl font-bold">

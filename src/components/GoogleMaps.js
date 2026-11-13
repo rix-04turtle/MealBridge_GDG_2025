@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, Autocomplete } from '@react-google-maps/api';
 
 const containerStyle = {
   width: '100%',
@@ -9,7 +9,7 @@ const containerStyle = {
 
 const libraries = ['places'];
 
-const GoogleMaps = ({ onLocationChange }) => {
+const GoogleMaps = ({ onLocationChange, searchQuery, onSearchQueryChange }) => {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -18,6 +18,7 @@ const GoogleMaps = ({ onLocationChange }) => {
 
   const [center, setCenter] = useState({ lat: 20.5937, lng: 78.9629 }); // Default center (India)
   const [markerPosition, setMarkerPosition] = useState(center);
+  const [autocomplete, setAutocomplete] = useState(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -51,6 +52,26 @@ const GoogleMaps = ({ onLocationChange }) => {
     onLocationChange({ latitude: newPos.lat, longitude: newPos.lng });
   };
 
+  const handlePlaceChanged = () => {
+    const place = autocomplete?.getPlace();
+    const location = place?.geometry?.location;
+
+    if (!location) {
+      return;
+    }
+
+    const newPos = {
+      lat: location.lat(),
+      lng: location.lng(),
+    };
+    setCenter(newPos);
+    setMarkerPosition(newPos);
+    onLocationChange(
+      { latitude: newPos.lat, longitude: newPos.lng },
+      place.formatted_address || place.name || ''
+    );
+  };
+
   if (loadError) {
     return <div>Error loading maps. Please check your API key and network connection.</div>;
   }
@@ -60,17 +81,32 @@ const GoogleMaps = ({ onLocationChange }) => {
   }
 
   return (
-    <GoogleMap
-      mapContainerStyle={containerStyle}
-      center={center}
-      zoom={15}
-    >
-      <Marker
-        position={markerPosition}
-        draggable={true}
-        onDragEnd={onMarkerDragEnd}
-      />
-    </GoogleMap>
+    <>
+      <Autocomplete
+        onLoad={setAutocomplete}
+        onPlaceChanged={handlePlaceChanged}
+        options={{ fields: ['formatted_address', 'geometry', 'name'] }}
+      >
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(event) => onSearchQueryChange(event.target.value)}
+          placeholder="Search for a location..."
+          className="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+      </Autocomplete>
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={center}
+        zoom={15}
+      >
+        <Marker
+          position={markerPosition}
+          draggable={true}
+          onDragEnd={onMarkerDragEnd}
+        />
+      </GoogleMap>
+    </>
   );
 };
 
